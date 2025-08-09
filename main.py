@@ -6,15 +6,14 @@ import face_recognition
 import numpy as np
 import time
 import math
-import sys
 
-# ------------------ CONFIGURAÇÕES ------------------
+# Configurações
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-YOLO_CONF_THRESHOLD = 0.45      # confiança mínima para desenhar box YOLO
-FRAME_WIDTH = 640               # opcional: redimensionar para performance
+YOLO_CONF_THRESHOLD = 0.45
+FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
 
-# ------------------ DETECÇÃO COM MEDIA PIPE ------------------
+# MediaPipeDetector (sem mudanças)
 class MediaPipeDetector:
     def __init__(self, face_conf=0.7, hand_conf=0.7):
         self.mp_hands = mp.solutions.hands
@@ -106,85 +105,8 @@ class MediaPipeDetector:
             'blinking': self.blinking
         }
 
-# ------------------ YOLO (Ultralytics) ------------------
-class YOLODetector:
-    def __init__(self, model_name='yolov8n.pt', device=DEVICE, conf=YOLO_CONF_THRESHOLD):
-        try:
-            self.model = YOLO(model_name)
-            self.model.to(device)
-            self.model.conf = conf
-            self.device = device
-        except Exception as e:
-            print("[ERRO] Não foi possível carregar YOLO (ultralytics).", e)
-            print("Tente: pip install ultralytics")
-            raise
+# FaceRecognitionModule e YOLODetector você pode manter igual se quiser.
 
-    def detect(self, frame):
-        results = self.model(frame, verbose=False)
-        if len(results) == 0:
-            return np.empty((0,6))
-        r = results[0]
-        if r.boxes is None or len(r.boxes) == 0:
-            return np.empty((0,6))
-        xyxy = r.boxes.xyxy.cpu().numpy()
-        confs = r.boxes.conf.cpu().numpy()
-        cls = r.boxes.cls.cpu().numpy()
-        out = np.concatenate([xyxy, confs.reshape(-1,1), cls.reshape(-1,1)], axis=1)
-        return out
-
-# ------------------ RECONHECIMENTO FACIAL (face_recognition) ------------------
-class FaceRecognitionModule:
-    def __init__(self):
-        self.known_face_encodings = []
-        self.known_face_names = []
-
-    def load_known_faces(self, images_with_names):
-        for img_path, name in images_with_names:
-            try:
-                img = face_recognition.load_image_file(img_path)
-                encs = face_recognition.face_encodings(img)
-                if len(encs) == 0:
-                    print(f"[WARN] Nenhum rosto encontrado em {img_path}")
-                    continue
-                encoding = encs[0]
-                self.known_face_encodings.append(encoding)
-                self.known_face_names.append(name)
-                print(f"[INFO] Carregou rosto: {name}")
-            except Exception as e:
-                print(f"[ERRO] Ao carregar {img_path}: {e}")
-
-    def recognize(self, frame, upsample_times=1):
-        rgb_frame = frame[:, :, ::-1]
-        face_locations = face_recognition.face_locations(rgb_frame, number_of_times_to_upsample=upsample_times)
-        encodings = face_recognition.face_encodings(rgb_frame, known_face_locations=face_locations)
-        names = []
-        for encoding in encodings:
-            name = "Desconhecido"
-            if len(self.known_face_encodings) > 0:
-                matches = face_recognition.compare_faces(self.known_face_encodings, encoding, tolerance=0.5)
-                face_distances = face_recognition.face_distance(self.known_face_encodings, encoding)
-                best_idx = np.argmin(face_distances)
-                if matches[best_idx]:
-                    name = self.known_face_names[best_idx]
-            names.append(name)
-        return face_locations, names
-
-# ------------------ UTIL ------------------
-def draw_yolo_boxes(frame, boxes, label_names=None):
-    h, w = frame.shape[:2]
-    for b in boxes:
-        x1, y1, x2, y2, conf, cls = b
-        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-        conf = float(conf)
-        cls = int(cls)
-        if conf < YOLO_CONF_THRESHOLD:
-            continue
-        color = (255, 0, 0)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        label = f'{label_names[cls] if label_names is not None else cls}:{conf:.2f}'
-        cv2.putText(frame, label, (x1, max(10, y1-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-
-# ------------------ MAIN ------------------
 def main():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -195,16 +117,12 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
     mp_detector = MediaPipeDetector()
-    yolo_detector = YOLODetector(model_name='yolov8n.pt', device=DEVICE, conf=YOLO_CONF_THRESHOLD)
-    face_recog = FaceRecognitionModule()
+    # yolo_detector = YOLODetector(model_name='yolov8n.pt', device=DEVICE, conf=YOLO_CONF_THRESHOLD)
+    # face_recog = FaceRecognitionModule()
 
-    # Exemplo de como carregar faces conhecidas
-    # face_recog.load_known_faces([("fotos/pedro1.jpg","Pedro"), ("fotos/amigo.jpg","Amigo")])
-
-    cv2.namedWindow("Original", cv2.WINDOW_NORMAL)
-    cv2.namedWindow("Detecção", cv2.WINDOW_NORMAL)
-
-    coco_names = yolo_detector.model.names if hasattr(yolo_detector.model, 'names') else None
+    # Apenas UMA janela
+    window_name = "Detecção Unificada"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
     fps_smoother = 0.0
     prev_time = time.time()
@@ -216,19 +134,13 @@ def main():
             print("[ERRO] Falha ao ler frame da câmera.")
             break
 
-        frame_orig = frame.copy()
-
-        mp_out = mp_detector.process(frame.copy(), draw_on_frame=True)
+        mp_out = mp_detector.process(frame, draw_on_frame=True)
         frame_proc = mp_out['frame']
 
-        boxes = yolo_detector.detect(frame_orig)
-        if boxes.size != 0:
-            draw_yolo_boxes(frame_proc, boxes, label_names=coco_names)
-
-        face_locations, face_names = face_recog.recognize(frame_orig)
-        for (top, right, bottom, left), name in zip(face_locations, face_names):
-            cv2.rectangle(frame_proc, (left, top), (right, bottom), (0, 255, 255), 2)
-            cv2.putText(frame_proc, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
+        # Desenhar contagem dedos e piscadas
+        for i, hand_info in enumerate(mp_out['hands_info']):
+            cv2.putText(frame_proc, f'Mao {i+1}: {hand_info["count"]} dedos', (10, 130 + 30 * i),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
 
         if mp_out['blinking']:
             cv2.rectangle(frame_proc, (0,0), (frame_proc.shape[1], 50), (0,0,255), -1)
@@ -241,8 +153,7 @@ def main():
         cv2.putText(frame_proc, f'FPS: {fps_smoother:.1f}', (10, frame_proc.shape[0]-10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
 
-        cv2.imshow("Original", frame_orig)
-        cv2.imshow("Detecção", frame_proc)
+        cv2.imshow(window_name, frame_proc)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
