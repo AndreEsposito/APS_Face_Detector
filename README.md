@@ -24,6 +24,7 @@
   <a href="#-como-usar">Como usar</a> •
   <a href="#-configurações-no-código">Configurações</a> •
   <a href="#-estrutura-do-projeto">Estrutura</a> •
+  <a href="#-tecnologias-e-o-que-fazem">Tecnologias</a> •
   <a href="#-contribuição">Contribuição</a>
 </p>
 
@@ -113,6 +114,21 @@ face_detector_project/
 │── utils.py             # Funções auxiliares
 │── README.md            # Documentação
 ```
+
+---
+
+## 📖 Tecnologias e o que fazem
+
+| Tecnologia         | Descrição |
+|--------------------|-----------|
+| **Python**         | Linguagem de programação usada para todo o desenvolvimento do projeto. |
+| **OpenCV**         | Biblioteca de visão computacional responsável por capturar vídeo da webcam, processar frames e exibir resultados. |
+| **NumPy**          | Usada para cálculos matemáticos e manipulação de arrays durante o processamento de imagem. |
+| **MediaPipe Hands**| Detecta mãos e retorna landmarks (pontos-chave) permitindo contar dedos levantados. |
+| **MediaPipe Face Mesh** | Detecta malha facial com mais de 400 pontos, usada para calcular a piscada via EAR. |
+| **YOLOv8 (opcional)** | Rede neural para detecção de objetos em tempo real, podendo substituir/expandir a detecção de rostos. |
+| **face_recognition (opcional)** | Realiza reconhecimento facial e identificação de pessoas previamente cadastradas. |
+| **PyTorch**        | Framework de deep learning necessário para rodar o YOLOv8. |
 
 ---
 
