@@ -13,13 +13,12 @@
   <sub>Feito com OpenCV, MediaPipe e suporte opcional a YOLOv8 e Face Recognition</sub>
 </p>
 
-<!-- Demo -->
+<!-- GIF de Demonstração -->
 <p align="center">
-  <!-- Substitua o caminho do GIF abaixo pelo seu arquivo (ex.: ./assets/demo.gif) -->
-  <img src="./assets/demo.gif" alt="Demonstração do projeto" width="85%">
+  <img src="https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif" width="80%" alt="GIF animado de detecção">
 </p>
 
-<!-- Quick Links -->
+<!-- Links Rápidos -->
 <p align="center">
   <a href="#-instalação">Instalação</a> •
   <a href="#-como-usar">Como usar</a> •
@@ -38,7 +37,7 @@
 - ⚡ **FPS ao vivo** (com suavização)  
 - 💾 **Salvar captura** (tecla <kbd>S</kbd>)  
 - 🛑 **Sair rápido** (tecla <kbd>Q</kbd>)  
-- 🧠 **YOLOv8** e **face_recognition** prontos para ativar (comentados no código)
+- 🧠 **YOLOv8** e **face_recognition** prontos para ativar (comentados no código)  
 
 ---
 
@@ -51,11 +50,11 @@
 </tr>
 <tr>
 <td><b>ML/Vision</b></td>
-<td>MediaPipe (Hands/Face Mesh), PyTorch (p/ YOLO), Ultralytics YOLO (opcional), face_recognition (opcional)</td>
+<td>MediaPipe (Hands/Face Mesh), PyTorch (YOLO), Ultralytics YOLO (opcional), face_recognition (opcional)</td>
 </tr>
 <tr>
 <td><b>SO</b></td>
-<td>Windows, Linux, macOS (compatível com Python/OpenCV)</td>
+<td>Windows, Linux, macOS</td>
 </tr>
 </table>
 
@@ -74,9 +73,54 @@ python -m venv venv
 # Windows
 venv\Scripts\activate
 # Linux/macOS
-# source venv/bin/activate
+source venv/bin/activate
 
 # 3) Instalar dependências
 pip install -r requirements.txt
-# ou manualmente:
-# pip install opencv-python mediapipe torch ultralytics face_recognition numpy
+
+# 4) 🚀 Como Usar
+python main.py
+```
+
+---
+
+## 🖥️ Como Usar
+
+Durante a execução:  
+➡️ Pressione **S** para salvar captura  
+➡️ Pressione **Q** para sair  
+
+---
+
+## ⚙️ Configurações no Código
+
+No `main.py`, você pode ativar/desativar módulos:
+
+```python
+USE_YOLO = False  # Habilita YOLOv8
+USE_FACE_RECOGNITION = False  # Habilita reconhecimento facial
+```
+
+---
+
+## 📂 Estrutura do Projeto
+
+```
+face_detector_project/
+│── assets/              # GIFs, imagens e mídias
+│── requirements.txt     # Dependências
+│── main.py              # Código principal
+│── utils.py             # Funções auxiliares
+│── README.md            # Documentação
+```
+
+---
+
+## 🤝 Contribuição
+
+Sinta-se livre para abrir issues e enviar pull requests.  
+Toda contribuição é bem-vinda! 💙
+
+<p align="center">
+  <img src="https://media.giphy.com/media/3o7abBphHJngINCHio/giphy.gif" width="150" alt="Obrigado!">
+</p>
