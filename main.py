@@ -14,27 +14,66 @@ FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
 
 # MediaPipeDetector (sem mudanças)
+
 class MediaPipeDetector:
     def __init__(self, face_conf=0.7, hand_conf=0.7):
+        # Inicializa Hands
         self.mp_hands = mp.solutions.hands
-        self.hands = self.mp_hands.Hands(max_num_hands=2,
-                                         min_detection_confidence=hand_conf,
-                                         min_tracking_confidence=0.5)
+        self.hands = self.mp_hands.Hands(
+            max_num_hands=2,
+            min_detection_confidence=hand_conf,
+            min_tracking_confidence=0.5
+        )
+
+        # Inicializa FaceMesh
         self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_mesh = self.mp_face_mesh.FaceMesh(max_num_faces=1,
-                                                    min_detection_confidence=face_conf,
-                                                    min_tracking_confidence=0.5)
+        self.face_mesh = self.mp_face_mesh.FaceMesh(
+            max_num_faces=1,
+            refine_landmarks=True,  # Mais precisão nos olhos/boca
+            min_detection_confidence=face_conf,
+            min_tracking_confidence=0.5
+        )
+
+        # Utilitário para desenhar
         self.mp_draw = mp.solutions.drawing_utils
 
+        # Índices dos olhos (EAR)
         self.LEFT_EYE_IDX = [33, 160, 158, 133, 153, 144]
         self.RIGHT_EYE_IDX = [362, 385, 387, 263, 373, 380]
 
-        self.blink_threshold = 0.23
-        self.prev_blink_time = 0
-        self.blink_cooldown = 0.45
+        # Variáveis para piscadas
+        self.blink_threshold = 0.25
+        self._closed_frames = 0
+        self.consec_frames = 2
         self.blink_count = 0
+        self._last_blink_time = 0
+        self.blink_display_time = 0.8
         self.blinking = False
 
+    # -------------------- Dedos levantados --------------------
+    def _fingers_up(self, hand_landmarks, hand_label):
+        tips_ids = [4, 8, 12, 16, 20]
+        fingers = []
+
+        if not hand_landmarks:
+            return [0, 0, 0, 0, 0]
+
+        # Polegar
+        if hand_label == "Right":
+            fingers.append(int(hand_landmarks.landmark[tips_ids[0]].x <
+                               hand_landmarks.landmark[tips_ids[0] - 1].x))
+        else:  # Left
+            fingers.append(int(hand_landmarks.landmark[tips_ids[0]].x >
+                               hand_landmarks.landmark[tips_ids[0] - 1].x))
+
+        # Outros dedos
+        for i in range(1, 5):
+            fingers.append(int(hand_landmarks.landmark[tips_ids[i]].y <
+                                hand_landmarks.landmark[tips_ids[i] - 2].y))
+
+        return fingers
+
+    # -------------------- Cálculos EAR --------------------
     def _euclidean_dist(self, p1, p2):
         return math.dist([p1.x, p1.y], [p2.x, p2.y])
 
@@ -47,37 +86,32 @@ class MediaPipeDetector:
             return 0.0
         return (vertical_1 + vertical_2) / (2.0 * horizontal)
 
-    def _fingers_up(self, hand_landmarks):
-        tips_ids = [4, 8, 12, 16, 20]
-        fingers = []
-        try:
-            fingers.append(int(hand_landmarks.landmark[tips_ids[0]].x <
-                               hand_landmarks.landmark[tips_ids[0] - 1].x))
-            for i in range(1, 5):
-                fingers.append(int(hand_landmarks.landmark[tips_ids[i]].y <
-                                    hand_landmarks.landmark[tips_ids[i] - 2].y))
-        except Exception:
-            return [0, 0, 0, 0, 0]
-        return fingers
-
+    # -------------------- Processamento completo --------------------
     def process(self, frame, draw_on_frame=True):
-        self.blinking = False
-        frame_out = frame
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        hands_results = self.hands.process(img_rgb)
+        # Processar mãos
+        hands_results = self.hands.process(rgb_frame)
+        fingers_list = []
         hands_info = []
-        if hands_results.multi_hand_landmarks:
-            for hand_landmarks in hands_results.multi_hand_landmarks:
-                fingers = self._fingers_up(hand_landmarks)
-                count_fingers = sum(fingers)
-                hands_info.append({'count': count_fingers, 'fingers': fingers})
-                if draw_on_frame:
-                    self.mp_draw.draw_landmarks(frame_out, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
 
-        face_results = self.face_mesh.process(img_rgb)
+        if hands_results.multi_hand_landmarks and hands_results.multi_handedness:
+            for hand_landmarks, hand_handedness in zip(hands_results.multi_hand_landmarks,
+                                                       hands_results.multi_handedness):
+                hand_label = hand_handedness.classification[0].label
+                fingers = self._fingers_up(hand_landmarks, hand_label)
+                fingers_list.append({"label": hand_label, "fingers": fingers})
+                hands_info.append({'count': sum(fingers), 'fingers': fingers})
+
+                if draw_on_frame:
+                    self.mp_draw.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+
+        # Processar face / piscadas
+        face_results = self.face_mesh.process(rgb_frame)
         face_present = False
         avg_ear = None
+        now = time.time()
+
         if face_results.multi_face_landmarks:
             face_present = True
             for face_landmarks in face_results.multi_face_landmarks:
@@ -85,20 +119,29 @@ class MediaPipeDetector:
                 left_ear = self._eye_aspect_ratio(landmarks, self.LEFT_EYE_IDX)
                 right_ear = self._eye_aspect_ratio(landmarks, self.RIGHT_EYE_IDX)
                 avg_ear = (left_ear + right_ear) / 2.0
-                now = time.time()
-                if avg_ear is not None and avg_ear < self.blink_threshold and (now - self.prev_blink_time) > self.blink_cooldown:
-                    self.blink_count += 1
-                    self.prev_blink_time = now
-                    self.blinking = True
+
+                # Lógica piscada
+                if avg_ear < self.blink_threshold:
+                    self._closed_frames += 1
+                else:
+                    if self._closed_frames >= self.consec_frames:
+                        self.blink_count += 1
+                        self._last_blink_time = now
+                    self._closed_frames = 0
+
+                self.blinking = (now - self._last_blink_time) < self.blink_display_time
+
                 if draw_on_frame:
-                    self.mp_draw.draw_landmarks(frame_out, face_landmarks, self.mp_face_mesh.FACEMESH_CONTOURS)
-                    if avg_ear is not None:
-                        cv2.putText(frame_out, f'EAR: {avg_ear:.2f}', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
-                        cv2.putText(frame_out, f'Piscadas: {self.blink_count}', (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
+                    self.mp_draw.draw_landmarks(frame, face_landmarks, self.mp_face_mesh.FACEMESH_CONTOURS)
+                    cv2.putText(frame, f'EAR: {avg_ear:.2f}', (10, 60),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,0), 2)
+                    cv2.putText(frame, f'Piscadas: {self.blink_count}', (10, 90),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
 
         return {
-            'frame': frame_out,
+            'frame': frame,
             'hands_info': hands_info,
+            'fingers_up': fingers_list,
             'face_present': face_present,
             'avg_ear': avg_ear,
             'blink_count': self.blink_count,
@@ -121,7 +164,7 @@ def main():
     # face_recog = FaceRecognitionModule()
 
     # Apenas UMA janela
-    window_name = "Detecção Unificada"
+    window_name = "Detecçãoq Unificada"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
     fps_smoother = 0.0
