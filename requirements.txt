@@ -1,8 +1,6 @@
-cat > requirements.txt << EOF
-opencv-python
-mediapipe
-torch
-ultralytics
-face_recognition
-numpy
-EOF
+numpy>=1.26
+opencv-contrib-python>=4.10
+opencv-python>=4.10
+# Opcional - se quiser YOLO (requer PyTorch):
+torch --index-url https://download.pytorch.org/whl/cpu
+ultralytics>=8.3

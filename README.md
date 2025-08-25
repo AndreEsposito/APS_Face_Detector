@@ -1,142 +1,200 @@
-<!-- Hero Section -->
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white" alt="Python 3.8+">
-  <img src="https://img.shields.io/badge/OpenCV-4%2B-5C3EE8?logo=opencv&logoColor=white" alt="OpenCV">
-  <img src="https://img.shields.io/badge/MediaPipe-OK-FF6F00" alt="MediaPipe">
-  <img src="https://img.shields.io/badge/YOLOv8-optional-00A67E" alt="YOLOv8">
-  <img src="https://img.shields.io/badge/License-MIT-000000" alt="MIT">
-</p>
+# APS Face Detector (OpenCV + Facemark LBF • Python 3.13)
 
-<h1 align="center">🎯 Face Detector Project</h1>
-<p align="center">
-  <b>Detecção unificada de rostos, piscadas e contagem de dedos em tempo real</b><br>
-  <sub>Feito com OpenCV, MediaPipe e suporte opcional a YOLOv8 e Face Recognition</sub>
-</p>
+Detecção de rosto via **OpenCV (Haar Cascade)** e **landmarks faciais (68 pontos)** com **Facemark LBF**.
+Calcula **EAR (Eye Aspect Ratio)** para indicar piscadas em tempo real.
+Compatível com **Python 3.13** no Windows.
 
-<!-- GIF de Demonstração -->
-<p align="center">
-  <img src="https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif" width="80%" alt="GIF animado de detecção">
-</p>
-
-<!-- Links Rápidos -->
-<p align="center">
-  <a href="#-instalação">Instalação</a> •
-  <a href="#-como-usar">Como usar</a> •
-  <a href="#-configurações-no-código">Configurações</a> •
-  <a href="#-estrutura-do-projeto">Estrutura</a> •
-  <a href="#-tecnologias-e-o-que-fazem">Tecnologias</a> •
-  <a href="#-contribuição">Contribuição</a>
-</p>
+> **Hotkeys**: **S** salva um frame em `./captures/` • **Q** encerra.
 
 ---
 
-## ✨ Recursos Principais
+## Sumário
 
-- 🎥 **Webcam em tempo real** com janela única: <i>Detecção Unificada</i>  
-- 🖐️ **Mãos + contagem de dedos** (MediaPipe Hands)  
-- 👁️ **Piscadas** via Face Mesh + EAR (Eye Aspect Ratio)  
-- ⚡ **FPS ao vivo** (com suavização)  
-- 💾 **Salvar captura** (tecla <kbd>S</kbd>)  
-- 🛑 **Sair rápido** (tecla <kbd>Q</kbd>)  
-- 🧠 **YOLOv8** e **face_recognition** prontos para ativar (comentados no código)  
-
----
-
-## 🧰 Tech Stack
-
-<table>
-<tr>
-<td><b>Core</b></td>
-<td>Python 3.8+, OpenCV, NumPy</td>
-</tr>
-<tr>
-<td><b>ML/Vision</b></td>
-<td>MediaPipe (Hands/Face Mesh), PyTorch (YOLO), Ultralytics YOLO (opcional), face_recognition (opcional)</td>
-</tr>
-<tr>
-<td><b>SO</b></td>
-<td>Windows, Linux, macOS</td>
-</tr>
-</table>
+* [Pré-requisitos](#pré-requisitos)
+* [Instalação (Windows/PowerShell)](#instalação-windowspowershell)
+* [Modelo de Landmarks (lbfmodel.yaml)](#modelo-de-landmarks-lbfmodelyaml)
+* [Como executar](#como-executar)
+* [Opções de linha de comando](#opções-de-linha-de-comando)
+* [Estrutura do projeto](#estrutura-do-projeto)
+* [Solução de problemas (FAQ)](#solução-de-problemas-faq)
+* [Alterações principais](#alterações-principais)
+* [Roadmap](#roadmap)
 
 ---
 
-## 📦 Instalação
+## Pré-requisitos
 
-```bash
+* **Python 3.13** (Windows 10/11)
+* Webcam habilitada e permissão de câmera no sistema
+
+---
+
+## Instalação (Windows/PowerShell)
+
+```powershell
 # 1) Clonar o repositório
-git clone https://github.com/ReaperKoji/face_detector_project.git
-cd face_detector_project
+git clone https://github.com/AndreEsposito/APS_Face_Detector.git
+cd APS_Face_Detector
 
-# 2) (Opcional) Criar ambiente virtual
-python -m venv venv
+# 2) Criar e ativar o ambiente virtual
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 
-# Windows
-venv\Scripts\activate
-# Linux/macOS
-source venv/bin/activate
+# 3) Atualizar ferramentas básicas
+pip install --upgrade pip wheel setuptools
 
-# 3) Instalar dependências
-pip install -r requirements.txt
+# 4) Instalar dependências principais
+pip install opencv-contrib-python numpy
+```
 
-# 4) 🚀 Como Usar
-python main.py
+> **Nota:** se houver conflito com `opencv-python`, remova-o e mantenha apenas o **contrib**:
+
+```powershell
+pip uninstall -y opencv-python
+pip install opencv-contrib-python
+```
+
+### (Opcional) YOLO/Ultralytics
+
+Não é necessário para rodar. Se quiser testar depois:
+
+```powershell
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install ultralytics
 ```
 
 ---
 
-## 🖥️ Como Usar
+## Modelo de Landmarks (`lbfmodel.yaml`)
 
-Durante a execução:  
-➡️ Pressione **S** para salvar captura  
-➡️ Pressione **Q** para sair  
+O **Facemark LBF** precisa do arquivo de **modelo pré-treinado** (68 pontos) em formato **YAML**.
+
+1. Baixe `lbfmodel.yaml` (clique em **Raw** e salve o arquivo).
+2. Crie a pasta `models/` na raiz do projeto.
+3. Salve o arquivo em: `models/lbfmodel.yaml`.
+
+Estrutura esperada:
+
+```
+APS_Face_Detector/
+ ├─ main.py
+ ├─ models/
+ │   └─ lbfmodel.yaml
+ └─ ...
+```
+
+> Sem esse arquivo o programa não consegue localizar os 68 pontos da face (olhos, boca, etc.) e, portanto, não calcula o EAR.
 
 ---
 
-## ⚙️ Configurações no Código
+## Como executar
 
-No `main.py`, você pode ativar/desativar módulos:
+Na raiz do projeto (venv ativo):
 
-```python
-USE_YOLO = False  # Habilita YOLOv8
-USE_FACE_RECOGNITION = False  # Habilita reconhecimento facial
+```powershell
+python .\main.py --camera-index 0 --model-path models\lbfmodel.yaml
+```
+
+Exemplos úteis:
+
+```powershell
+# usar outra câmera
+python .\main.py --camera-index 1 --model-path models\lbfmodel.yaml
+
+# ajustar resolução e limiar de piscada
+python .\main.py --width 1280 --height 720 --blink-thresh 0.20 --model-path models\lbfmodel.yaml
 ```
 
 ---
 
-## 📂 Estrutura do Projeto
+## Opções de linha de comando
 
-```
-face_detector_project/
-│── assets/              # GIFs, imagens e mídias
-│── requirements.txt     # Dependências
-│── main.py              # Código principal
-│── utils.py             # Funções auxiliares
-│── README.md            # Documentação
+```text
+--camera-index   Índice da webcam (default: 0)
+--model-path     Caminho do lbfmodel.yaml (default: models/lbfmodel.yaml)
+--blink-thresh   Limiar EAR para indicar piscada (default: 0.22)
+--save-dir       Pasta de saída para capturas (default: captures/)
+--width          Largura desejada do frame (0 = manter padrão)
+--height         Altura desejada do frame (0 = manter padrão)
+--detector       Detector de face (apenas 'haar' no momento)
 ```
 
 ---
 
-## 📖 Tecnologias e o que fazem
+## Estrutura do projeto
 
-| Tecnologia         | Descrição |
-|--------------------|-----------|
-| **Python**         | Linguagem de programação usada para todo o desenvolvimento do projeto. |
-| **OpenCV**         | Biblioteca de visão computacional responsável por capturar vídeo da webcam, processar frames e exibir resultados. |
-| **NumPy**          | Usada para cálculos matemáticos e manipulação de arrays durante o processamento de imagem. |
-| **MediaPipe Hands**| Detecta mãos e retorna landmarks (pontos-chave) permitindo contar dedos levantados. |
-| **MediaPipe Face Mesh** | Detecta malha facial com mais de 400 pontos, usada para calcular a piscada via EAR. |
-| **YOLOv8 (opcional)** | Rede neural para detecção de objetos em tempo real, podendo substituir/expandir a detecção de rostos. |
-| **face_recognition (opcional)** | Realiza reconhecimento facial e identificação de pessoas previamente cadastradas. |
-| **PyTorch**        | Framework de deep learning necessário para rodar o YOLOv8. |
+```
+APS_Face_Detector/
+├─ main.py                 # Pipeline principal (Haar + Facemark LBF + EAR)
+├─ captures/               # (criada em runtime) frames salvos com 'S'
+├─ models/
+│  └─ lbfmodel.yaml        # modelo de landmarks (68 pts) - necessário
+├─ requirements.txt        # (opcional) mínimo sugerido abaixo
+└─ ...
+```
+
+**requirements.txt (mínimo sugerido):**
+
+```txt
+numpy>=1.26
+opencv-contrib-python>=4.10
+```
+
+*(YOLO/Torch são opcionais e não entram no mínimo.)*
 
 ---
 
-## 🤝 Contribuição
+## Solução de problemas (FAQ)
 
-Sinta-se livre para abrir issues e enviar pull requests.  
-Toda contribuição é bem-vinda! 💙
+**1) `cv2.error ... in function 'fit' ... faces is not a numpy array`**
 
-<p align="center">
-  <img src="https://media.giphy.com/media/3o7abBphHJngINCHio/giphy.gif" width="150" alt="Obrigado!">
-</p>
+* Atualize o `main.py`. O projeto já converte `faces_rects` para `NumPy (N,4) int32` e chama `facemark.fit` com imagem **em escala de cinza**.
+
+**2) `module 'cv2' has no attribute 'face'`**
+
+* Falta o módulo contrib. Instale:
+
+  ```powershell
+  pip uninstall -y opencv-python
+  pip install opencv-contrib-python
+  ```
+
+**3) `Não foi possível abrir a webcam`**
+
+* Tente `--camera-index 1` ou `2`.
+* Feche apps que usam a câmera (Teams/Zoom/OBS).
+* Verifique permissões de câmera no Windows.
+* Iluminação fraca atrapalha a detecção.
+
+**4) `Modelo LBF não encontrado`**
+
+* Baixe o `lbfmodel.yaml` e coloque em `.\models\lbfmodel.yaml`.
+* Ajuste `--model-path` se estiver em outra pasta.
+
+**5) Baixo FPS / detecção instável**
+
+* Use `--width 640 --height 480`.
+* Aumente `minSize` no detector (alterar no código, se necessário).
+* Garanta iluminação frontal e rosto a \~50–70cm da câmera.
+
+---
+
+## Alterações principais
+
+* **Removido**: MediaPipe e face\_recognition (dlib).
+* **Adicionado**: OpenCV **Facemark LBF** para landmarks 68-pts.
+* **Mantido**: Haar Cascade para detecção de face.
+* **Compatibilidade**: Python **3.13** no Windows.
+* **CLI**: flags para câmera, modelo, EAR, resolução e pasta de saída.
+
+---
+
+## Roadmap
+
+* Detector DNN (SSD/ResNet-10) como alternativa mais robusta ao Haar.
+* Opção `--detector yolo` (Ultralytics) quando desejado.
+* Métricas (blinks/min, latência, FPS médio) e logs.
+* **Auto-download** do `lbfmodel.yaml` no primeiro run (opt-in).
+* Scripts `scripts/setup.ps1` e `scripts/run.ps1` para onboarding rápido.
+
+---
