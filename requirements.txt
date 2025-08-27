@@ -1,8 +1,2 @@
-cat > requirements.txt << EOF
-opencv-python
-mediapipe
-torch
-ultralytics
-face_recognition
-numpy
-EOF
+numpy>=1.26
+opencv-contrib-python>=4.10
