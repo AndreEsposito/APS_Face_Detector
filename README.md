@@ -1,200 +1,285 @@
-# APS Face Detector (OpenCV + Facemark LBF • Python 3.13)
+# APS Face Access (OpenCV + Facemark LBF + LBPH + RBAC) — Python 3.13
 
-Detecção de rosto via **OpenCV (Haar Cascade)** e **landmarks faciais (68 pontos)** com **Facemark LBF**.
-Calcula **EAR (Eye Aspect Ratio)** para indicar piscadas em tempo real.
-Compatível com **Python 3.13** no Windows.
+Sistema de **identificação/autenticação biométrica facial** com **liveness (piscada/EAR)** e **controle de acesso por níveis (RBAC 1/2/3)**, compatível com **Python 3.13** (Windows).
+Projeto **modularizado**, com CLI clara e **semáforo de captura** no ENROLL para guiar a aquisição de amostras.
 
-> **Hotkeys**: **S** salva um frame em `./captures/` • **Q** encerra.
+> Hotkeys da janela: **S** salva um frame em `./captures/` • **Q** encerra.
 
 ---
 
 ## Sumário
 
+* [Arquitetura & Pastas](#arquitetura--pastas)
+* [Tecnologias Utilizadas](#tecnologias-utilizadas)
 * [Pré-requisitos](#pré-requisitos)
-* [Instalação (Windows/PowerShell)](#instalação-windowspowershell)
-* [Modelo de Landmarks (lbfmodel.yaml)](#modelo-de-landmarks-lbfmodelyaml)
-* [Como executar](#como-executar)
-* [Opções de linha de comando](#opções-de-linha-de-comando)
-* [Estrutura do projeto](#estrutura-do-projeto)
-* [Solução de problemas (FAQ)](#solução-de-problemas-faq)
-* [Alterações principais](#alterações-principais)
-* [Roadmap](#roadmap)
+* [Instalação](#instalação)
+* [Como Rodar (Passo a Passo)](#como-rodar-passo-a-passo)
+* [Comandos & Parâmetros](#comandos--parâmetros)
+* [Funcionalidades](#funcionalidades)
+* [Dicas de Qualidade & Calibração](#dicas-de-qualidade--calibração)
+* [Logs & Relatórios](#logs--relatórios)
+* [Solução de Problemas (FAQ)](#solução-de-problemas-faq)
+* [Roadmap (Evoluções Sugeridas)](#roadmap-evoluções-sugeridas)
+* [Licença](#licença)
+
+---
+
+## Arquitetura & Pastas
+
+```
+APS_Face_Detector/
+├─ core/
+│  ├─ config.py            # thresholds, tamanhos, RBAC
+│  ├─ paths.py             # caminhos e criação de pastas
+│  ├─ utils.py             # logging, overlays e salvar frame
+│  ├─ detector.py          # Haar + detectMultiScale
+│  ├─ landmarks.py         # Facemark LBF + EAR + crop/normalize
+│  ├─ liveness.py          # janela de blinks
+│  ├─ recognizer_lbph.py   # treino/predição LBPH
+│  ├─ rbac.py              # overlay do nível e recursos
+│  └─ storage.py           # SQLite + logs CSV
+├─ models/
+│  ├─ lbfmodel.yaml        # (baixe e coloque aqui)
+│  └─ lbph.yml             # (gerado após ENROLL)
+├─ data/                   # (criado em runtime)
+│  ├─ samples/<user_id>/*.jpg
+│  └─ db.sqlite
+├─ reports/                # (criado em runtime)
+│  └─ access_log.csv
+├─ captures/               # (criado em runtime quando capturado um frame)
+├─ main.py                 # CLI: enroll/auth
+└─ requirements.txt
+```
+
+---
+
+## Tecnologias Utilizadas
+
+* **Python 3.13**
+* **OpenCV (opencv-contrib-python)**
+
+  * Haar Cascade (detecção)
+  * **Facemark LBF** (68 landmarks) para EAR/pose
+  * **LBPH** (reconhecimento)
+* **NumPy**
+* **SQLite** (persistência de usuários/nível)
+* **CSV** (log de tentativas)
 
 ---
 
 ## Pré-requisitos
 
-* **Python 3.13** (Windows 10/11)
-* Webcam habilitada e permissão de câmera no sistema
+* Windows com webcam funcionando
+* Python 3.13
+* Evite instalar o projeto em caminhos com acentos/símbolos (ex.: `°`, `ç`), para não quebrar carregamento de modelos do OpenCV.
+
+> **Importante:** o arquivo `models/lbfmodel.yaml` **não vai no repositório**. Você deve baixá-lo e colocá-lo em `models/`.
 
 ---
 
-## Instalação (Windows/PowerShell)
+## Instalação
 
 ```powershell
-# 1) Clonar o repositório
-git clone https://github.com/AndreEsposito/APS_Face_Detector.git
-cd APS_Face_Detector
-
-# 2) Criar e ativar o ambiente virtual
+# 1) Ambiente virtual
 py -3.13 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1 
+# caso o powershell bloqueie esse comando acima, roda esse comando abaixo:
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force 
 
-# 3) Atualizar ferramentas básicas
+# 2) Instale dependências
 pip install --upgrade pip wheel setuptools
-
-# 4) Instalar dependências principais
-pip install opencv-contrib-python numpy
+pip install -r requirements.txt
+# ou, manualmente:
+# pip uninstall -y opencv-python
+# pip install opencv-contrib-python>=4.10 numpy>=1.26
 ```
 
-> **Nota:** se houver conflito com `opencv-python`, remova-o e mantenha apenas o **contrib**:
+> Se você tinha `opencv-python` instalado, **desinstale** e use **opencv-contrib-python** (necessário para `cv2.face` e Facemark LBF).
+
+---
+
+## Como Rodar (Passo a Passo)
+
+### 1) Obtendo o **`models/lbfmodel.yaml`** (landmarks 68 pts)
+
+O OpenCV **referencia publicamente** um modelo LBF pré-treinado para 68 pontos faciais; a própria documentação aponta para esse arquivo hospedado no GitHub. ([docs.opencv.org][1])
+
+```bash
+mkdir -p models
+curl -L "https://raw.githubusercontent.com/kurnianggoro/GSOC2017/master/data/lbfmodel.yaml" -o models/lbfmodel.yaml
+```
+
+> O link acima é o modelo LBF do repositório do GSOC 2017 (usado pela doc/tutoriais de OpenCV). Se preferir, confira o repositório: kurnianggoro/GSOC2017. ([GitHub][2])
+
+[1]: https://github.com/kurnianggoro/GSOC2017/blob/master/data/lbfmodel.yaml "GSOC2017"
+[2]: https://github.com/kurnianggoro/GSOC2017?utm_source=chatgpt.com "kurnianggoro/GSOC2017"
+
+### 2) Coloque o modelo de landmarks
+
+* Salve **`models/lbfmodel.yaml`** (68 pontos) em `./models/`.
+
+### 3) Cadastro (ENROLL)
+
+Captura amostras do usuário, já **recortadas/normalizadas** (grayscale, 200x200) e treina o **LBPH**.
+
+**Comando básico:**
+
+```powershell
+python .\main.py enroll --user "Seu Nome" --nivel 2 --samples 20 --camera-index 0 --model-path models\lbfmodel.yaml
+```
+
+**Recomendado (captura mais “qualificada”):**
+
+```powershell
+# 0.8s entre capturas + exige blink + exige diversidade de pose
+python .\main.py enroll --user "Seu Nome" --nivel 2 --samples 20 --camera-index 0 --model-path models\lbfmodel.yaml --capture-interval 0.8 --capture-on-blink --pose-diversity
+```
+
+* **Semáforo no ENROLL:** painel no canto superior direito
+
+  * **Verde** = pronto para capturar (face ok, intervalo ok, blink/pose se ativados)
+  * **Vermelho** = aguarde cumprir os critérios
+  * Linhas mostram o status individual: **Face**, **Interval**, **Blink**, **Pose**
+
+> Ao terminar, o modelo LBPH é salvo em `models/lbph.yml`.
+
+### 4) Autenticação (AUTH)
+
+Realiza **detecção → landmarks/EAR → liveness → LBPH**. Se aprovado, mostra **overlay RBAC** com os recursos do nível do usuário.
+
+```powershell
+python .\main.py auth --camera-index 0 --model-path models\lbfmodel.yaml
+```
+
+---
+
+## Comandos & Parâmetros
+
+### Subcomandos
+
+* `enroll` — cadastro e treino
+* `auth` — autenticação com liveness + RBAC
+
+### ENROLL – parâmetros principais
+
+| Parâmetro            | Descrição                                        | Padrão                 |
+| -------------------- | ------------------------------------------------ | ---------------------- |
+| `--user`             | Nome do usuário a cadastrar                      | **obrigatório**        |
+| `--nivel`            | Nível de acesso (1/2/3)                          | **obrigatório**        |
+| `--samples`          | Nº de amostras a capturar                        | 20                     |
+| `--camera-index`     | Índice da webcam                                 | 0                      |
+| `--model-path`       | Caminho do `lbfmodel.yaml`                       | `models/lbfmodel.yaml` |
+| `--capture-interval` | **Tempo mínimo** entre capturas (s)              | 0.7                    |
+| `--capture-on-blink` | Captura **somente após blink**                   | desativado             |
+| `--pose-diversity`   | Exige **variação de pose** (yaw/pitch)           | desativado             |
+| `--yaw-thresh`       | Variação mínima de yaw (se `--pose-diversity`)   | 0.15                   |
+| `--pitch-thresh`     | Variação mínima de pitch (se `--pose-diversity`) | 0.12                   |
+
+### AUTH – parâmetros principais
+
+| Parâmetro        | Descrição                                        | Padrão                       |
+| ---------------- | ------------------------------------------------ | ---------------------------- |
+| `--camera-index` | Índice da webcam                                 | 0                            |
+| `--model-path`   | Caminho do `lbfmodel.yaml`                       | `models/lbfmodel.yaml`       |
+| `--blink-thresh` | Limiar EAR (liveness)                            | definido em `core/config.py` |
+| `--lbph-thresh`  | Limiar de decisão do LBPH (menor = mais estrito) | 70.0                         |
+
+---
+
+## Funcionalidades
+
+* **Detecção facial (Haar)**
+* **Landmarks (Facemark LBF, 68 pts)**
+
+  * **EAR** (Eye Aspect Ratio) para liveness por **piscada**
+  * Estimativa simples de **yaw/pitch** para diversidade de pose no ENROLL
+* **Semáforo de captura (ENROLL)** para orientar o usuário
+* **Cadastro (ENROLL) inteligente**
+
+  * Intervalo mínimo entre capturas
+  * Gate por **blink** (opcional)
+  * Gate por **diversidade de pose** (opcional)
+* **Reconhecimento (AUTH)** via **LBPH** (cv2.face)
+
+  * Decisão por **distância** + **liveness OK**
+* **RBAC (1/2/3)** com overlay didático dos recursos liberados
+* **Persistência**
+
+  * Usuários/nível: **SQLite** (`data/db.sqlite`)
+  * Amostras: `data/samples/<user_id>/*.jpg`
+  * Modelo LBPH: `models/lbph.yml`
+* **Logs CSV** das tentativas (`reports/access_log.csv`)
+* **Compatível com Windows/Python 3.13**
+* **Offline** (não depende de internet após baixar o `lbfmodel.yaml`)
+
+---
+
+## Dicas de Qualidade & Calibração
+
+* **Varie a pose** no ENROLL (frente/esquerda/direita/cima/baixo) e a iluminação (sem exageros).
+* Use `--capture-interval 0.8 --capture-on-blink --pose-diversity` para um dataset mais diverso.
+* **Calibre o limiar LBPH**: comece com `--lbph-thresh 70`.
+
+  * Se houver falsos positivos, reduza (ex.: 60–65).
+  * Se houver muitos falsos negativos, aumente (ex.: 75–80).
+* Garanta que **apenas 1 face** esteja visível no AUTH, próximo à câmera.
+
+---
+
+## Logs & Relatórios
+
+* `reports/access_log.csv` registra:
+  `timestamp, user_pred_id, user_pred_nome, distancia, liveness_ok, nivel_concedido, obs`
+* Use esse CSV para montar **métricas** (acurácia, FAR/FRR simples) e gráficos no relatório da APS.
+
+---
+
+## Solução de Problemas (FAQ)
+
+**“cv2.face indisponível / Facemark não existe”**
+→ Desinstale `opencv-python` e instale `opencv-contrib-python`.
 
 ```powershell
 pip uninstall -y opencv-python
-pip install opencv-contrib-python
+pip install --upgrade opencv-contrib-python
 ```
 
-### (Opcional) YOLO/Ultralytics
+**“Can't open haarcascade\_frontalface\_default.xml”**
+→ Caminhos com acentos/símbolos podem quebrar o carregamento nativo.
 
-Não é necessário para rodar. Se quiser testar depois:
+* Mova o projeto para um caminho ASCII simples (ex.: `C:\projetos\APS\FaceDetector`).
+* Recrie o venv e reinstale as deps.
 
-```powershell
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-pip install ultralytics
-```
+**“lbfmodel.yaml não encontrado ou corrompido”**
+→ Coloque o arquivo correto em `models/lbfmodel.yaml` (tamanho típico: vários MB).
+
+**“Modelo LBPH vazio”**
+→ Rode o **ENROLL** primeiro (capturando amostras), depois **AUTH**.
+
+**“Múltiplas faces detectadas”**
+→ Aproxime apenas um usuário.
+
+**“Blink não detecta / liveness falha”**
+→ Ajuste `--blink-thresh` (AUTH) ou melhore a iluminação.
+→ No ENROLL, use `--capture-on-blink` para educar o usuário a piscar.
 
 ---
 
-## Modelo de Landmarks (`lbfmodel.yaml`)
+## Roadmap (Evoluções Sugeridas)
 
-O **Facemark LBF** precisa do arquivo de **modelo pré-treinado** (68 pontos) em formato **YAML**.
-
-1. Baixe `lbfmodel.yaml` (clique em **Raw** e salve o arquivo).
-2. Crie a pasta `models/` na raiz do projeto.
-3. Salve o arquivo em: `models/lbfmodel.yaml`.
-
-Estrutura esperada:
-
-```
-APS_Face_Detector/
- ├─ main.py
- ├─ models/
- │   └─ lbfmodel.yaml
- └─ ...
-```
-
-> Sem esse arquivo o programa não consegue localizar os 68 pontos da face (olhos, boca, etc.) e, portanto, não calcula o EAR.
+* **Cotas por pose** (frente/esq/dir/cima/baixo) no ENROLL para balancear samples.
+* **Filtro de qualidade** (blur/iluminação) para descartar amostras ruins.
+* **Relatório PDF** automatizado a partir do CSV (gráficos e sumários).
+* **API (FastAPI)** com endpoints `/auth/face` e recursos por nível.
+* Detector **DNN** (SSD/ResNet, RetinaFace) e embeddings mais robustos (troca de LBPH).
 
 ---
 
-## Como executar
+## Licença
 
-Na raiz do projeto (venv ativo):
-
-```powershell
-python .\main.py --camera-index 0 --model-path models\lbfmodel.yaml
-```
-
-Exemplos úteis:
-
-```powershell
-# usar outra câmera
-python .\main.py --camera-index 1 --model-path models\lbfmodel.yaml
-
-# ajustar resolução e limiar de piscada
-python .\main.py --width 1280 --height 720 --blink-thresh 0.20 --model-path models\lbfmodel.yaml
-```
+Defina uma licença para o repositório (ex.: **MIT**).
+O arquivo `lbfmodel.yaml` é de terceiros (OpenCV/contrib). **Verifique a licença** do modelo antes de redistribuir.
 
 ---
 
-## Opções de linha de comando
-
-```text
---camera-index   Índice da webcam (default: 0)
---model-path     Caminho do lbfmodel.yaml (default: models/lbfmodel.yaml)
---blink-thresh   Limiar EAR para indicar piscada (default: 0.22)
---save-dir       Pasta de saída para capturas (default: captures/)
---width          Largura desejada do frame (0 = manter padrão)
---height         Altura desejada do frame (0 = manter padrão)
---detector       Detector de face (apenas 'haar' no momento)
-```
-
----
-
-## Estrutura do projeto
-
-```
-APS_Face_Detector/
-├─ main.py                 # Pipeline principal (Haar + Facemark LBF + EAR)
-├─ captures/               # (criada em runtime) frames salvos com 'S'
-├─ models/
-│  └─ lbfmodel.yaml        # modelo de landmarks (68 pts) - necessário
-├─ requirements.txt        # (opcional) mínimo sugerido abaixo
-└─ ...
-```
-
-**requirements.txt (mínimo sugerido):**
-
-```txt
-numpy>=1.26
-opencv-contrib-python>=4.10
-```
-
-*(YOLO/Torch são opcionais e não entram no mínimo.)*
-
----
-
-## Solução de problemas (FAQ)
-
-**1) `cv2.error ... in function 'fit' ... faces is not a numpy array`**
-
-* Atualize o `main.py`. O projeto já converte `faces_rects` para `NumPy (N,4) int32` e chama `facemark.fit` com imagem **em escala de cinza**.
-
-**2) `module 'cv2' has no attribute 'face'`**
-
-* Falta o módulo contrib. Instale:
-
-  ```powershell
-  pip uninstall -y opencv-python
-  pip install opencv-contrib-python
-  ```
-
-**3) `Não foi possível abrir a webcam`**
-
-* Tente `--camera-index 1` ou `2`.
-* Feche apps que usam a câmera (Teams/Zoom/OBS).
-* Verifique permissões de câmera no Windows.
-* Iluminação fraca atrapalha a detecção.
-
-**4) `Modelo LBF não encontrado`**
-
-* Baixe o `lbfmodel.yaml` e coloque em `.\models\lbfmodel.yaml`.
-* Ajuste `--model-path` se estiver em outra pasta.
-
-**5) Baixo FPS / detecção instável**
-
-* Use `--width 640 --height 480`.
-* Aumente `minSize` no detector (alterar no código, se necessário).
-* Garanta iluminação frontal e rosto a \~50–70cm da câmera.
-
----
-
-## Alterações principais
-
-* **Removido**: MediaPipe e face\_recognition (dlib).
-* **Adicionado**: OpenCV **Facemark LBF** para landmarks 68-pts.
-* **Mantido**: Haar Cascade para detecção de face.
-* **Compatibilidade**: Python **3.13** no Windows.
-* **CLI**: flags para câmera, modelo, EAR, resolução e pasta de saída.
-
----
-
-## Roadmap
-
-* Detector DNN (SSD/ResNet-10) como alternativa mais robusta ao Haar.
-* Opção `--detector yolo` (Ultralytics) quando desejado.
-* Métricas (blinks/min, latência, FPS médio) e logs.
-* **Auto-download** do `lbfmodel.yaml` no primeiro run (opt-in).
-* Scripts `scripts/setup.ps1` e `scripts/run.ps1` para onboarding rápido.
-
----
+**Pronto!** Com este projeto você cobre: **aquisição por vídeo**, **biometria facial** com **liveness**, **autenticação** e **controle de acesso por níveis**, além de **logs** para análise — exatamente o que a APS pede.
