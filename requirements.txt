@@ -1,4 +1,3 @@
-cat > requirements.txt << EOF
 opencv-python
 mediapipe
 torch
@@ -6,3 +5,10 @@ ultralytics
 face_recognition
 numpy
 EOF
+flask
+opencv-python
+deepface
+numpy
+pillow
+sqlalchemy
+gunicorn

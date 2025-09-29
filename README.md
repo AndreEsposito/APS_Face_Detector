@@ -1,4 +1,3 @@
-<!-- Hero Section -->
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white" alt="Python 3.8+">
   <img src="https://img.shields.io/badge/OpenCV-4%2B-5C3EE8?logo=opencv&logoColor=white" alt="OpenCV">
@@ -58,6 +57,20 @@
 <td>Windows, Linux, macOS</td>
 </tr>
 </table>
+=======
+# Sistema Biométrico - Projeto em Python
+
+Este projeto implementa um **sistema biométrico de reconhecimento facial**, permitindo o **cadastro de usuários** e **autenticação via webcam ou arquivos de imagem**. Baseado em Python, OpenCV e DeepFace.
+
+---
+
+## 🔧 Pré-requisitos
+
+- Python 3.11+ recomendado
+- Webcam (para cadastro e autenticação via CLI)
+- GPU opcional (acelera DeepFace)
+- Sistema operacional compatível: Windows / Linux / Mac
+>>>>>>> 8d4a72af (Primeiro commit - projeto biometria)
 
 ---
 
@@ -140,3 +153,19 @@ Toda contribuição é bem-vinda! 💙
 <p align="center">
   <img src="https://media.giphy.com/media/3o7abBphHJngINCHio/giphy.gif" width="150" alt="Obrigado!">
 </p>
+=======
+É **altamente recomendado criar um virtualenv** para isolar dependências:
+
+```bash
+# Criar e ativar virtualenv
+python -m venv venv
+# Linux / Mac
+source venv/bin/activate
+# Windows
+venv\Scripts\activate
+
+# Atualizar pip
+pip install --upgrade pip
+
+# Instalar dependências do projeto
+pip install -r requirements.txt
